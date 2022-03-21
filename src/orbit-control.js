@@ -55,7 +55,7 @@ export class OrbitControl {
         this.camera.rotation[0] -= this.theta;
         this.camera.rotation[1] -= this.phi;
 
-        const thetaLimitUp = -8;
+        const thetaLimitUp = 80;
         const thetaLimitDown = -80;
         if (this.camera.rotation[0] > thetaLimitUp) {
             this.camera.rotation[0] = thetaLimitUp;
