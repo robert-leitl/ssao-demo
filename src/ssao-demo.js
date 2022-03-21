@@ -1,10 +1,12 @@
 
 import { mat4, quat, vec3 } from 'gl-matrix';
 import { OrbitControl } from './orbit-control';
+import { RoundedBoxGeometry } from './rounded-box-geometry';
 
 import colorVertShaderSource from './shader/color.vert';
 import colorFragShaderSource from './shader/color.frag';
-import { RoundedBoxGeometry } from './rounded-box-geometry';
+import compositeVertShaderSource from './shader/composite.vert';
+import compositeFragShaderSource from './shader/composite.frag';
 
 export class SSAODemo {
     oninit;
@@ -17,7 +19,7 @@ export class SSAODemo {
     camera = {
         matrix: mat4.create(),
         near: 80,
-        far: 350,
+        far: 150,
         distance: 120,
         orbit: quat.create(),
         position: vec3.create(),
@@ -73,10 +75,11 @@ export class SSAODemo {
 
         gl.enable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
+
+        this.#setFramebuffer(gl, this.colorFramebuffer, this.colorFBOWidth, this.colorFBOHeight);
+        gl.useProgram(this.colorProgram);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.clearColor(.97, .97, 0.97, 1.);
-
-        gl.useProgram(this.colorProgram);
         gl.uniformMatrix4fv(this.colorLocations.u_viewMatrix, false, this.colorUniforms.u_viewMatrix);
         gl.uniformMatrix4fv(this.colorLocations.u_projectionMatrix, false, this.colorUniforms.u_projectionMatrix);
         gl.uniform3f(this.colorLocations.u_cameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
@@ -87,12 +90,21 @@ export class SSAODemo {
         const s1 = (Math.sin(this.#frames * 0.08) * 0.5 + .5) * 0.2;
         const s2 = (Math.cos(this.#frames * 0.06) * 0.5 + .5) * 0.2;
         const s3 = (Math.sin(this.#frames * 0.02) * 0.5 + .5) * 0.2;
-        this.#renderCube(gl, this.cube1VAO, this.cube1Buffers.numElem, [1., 0.15, 0.15], [0, 0, 0], [25 - s1 * 5, 25 - s2 * 5, 25 - s3 * 5], [0, 1, 0], Math.PI / 4);
-        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.95, .8, 0.2], [10, 25 - 2.5, 0], [20, 20 - s1 * 3, 20 - s2 * 2], [0, 1, 0], 0);
-        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-23, 2, 10], [20, 20 - s2 * 4, 20 - s1 * 2], [0, 1, 0],  3 * Math.PI / 4.5);
+        this.#renderCube(gl, this.cube1VAO, this.cube1Buffers.numElem, [1., 0.15, 0.15], [0, 0, 0], [25 - s1 * 5, 25 - s2 * 5, 25 - s3 * 5], [0, 1, 0.1], Math.PI / 4);
+        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.95, .8, 0.2], [10, 25 - 1.5, 0], [20, 20 - s1 * 3, 20 - s2 * 2], [0, 1, 0], 0);
+        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-23, 2, 10], [18, 18 - s2 * 4, 18 - s1 * 2], [0.1, 1, 0],  3 * Math.PI / 4.5);
         this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .95, .4], [20, -12, 13], [12 - s1 * 3, 12, 12 - s2 * 1], [0, 1, 0],  0);
-        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [0, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0], Math.PI / 3);
+        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [0, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0.3], Math.PI / 3);
+        this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
+        gl.useProgram(this.compositeProgram);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.bindVertexArray(this.quadVAO);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
+        gl.uniform1i(this.compositeLocations.u_colorTexture, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
     }
 
     #renderCube(gl, vao, numElm, color, translation, scale, rotationAxis, angle) {
@@ -126,10 +138,16 @@ export class SSAODemo {
             throw new Error('No WebGL 2 context!')
         }
 
+        if (!gl.getExtension("EXT_color_buffer_float")) {
+            console.error("FLOAT color buffer not available");
+            document.body.innerHTML = "This example requires EXT_color_buffer_float which is unavailable on this system."
+        }
+
         ///////////////////////////////////  PROGRAM SETUP
 
         // setup programs
         this.colorProgram = this.#createProgram(gl, [colorVertShaderSource, colorFragShaderSource]);
+        this.compositeProgram = this.#createProgram(gl, [compositeVertShaderSource, compositeFragShaderSource], null, { a_position: 0 });
 
         // find the locations
         this.colorLocations = {
@@ -144,6 +162,11 @@ export class SSAODemo {
             u_envMap: gl.getUniformLocation(this.colorProgram, 'u_envMap'),
             u_color: gl.getUniformLocation(this.colorProgram, 'u_color')
            //u_frames: gl.getUniformLocation(this.colorProgram, 'u_frames')
+        };
+        this.compositeLocations = {
+            a_position: gl.getAttribLocation(this.compositeProgram, 'a_position'),
+            u_colorTexture: gl.getUniformLocation(this.compositeProgram, 'u_colorTexture'),
+            u_ssaoTexture: gl.getUniformLocation(this.compositeProgram, 'u_ssaoTexture')
         };
         
         // setup uniforms
@@ -212,13 +235,26 @@ export class SSAODemo {
          
         /////////////////////////////////// INITIAL DRAW PASS SETUP
 
-        this.drawFramebufferWidth = clientWidth;
-        this.drawFramebufferHeight = clientHeight;
+        this.colorFBOWidth = clientWidth;
+        this.colorFBOHeight = clientHeight;
 
-        /////////////////////////////////// FIRST BLUR PASS SETUP
+        // depth texture setup
+        this.depthTexture = this.#createAndSetupTexture(gl, gl.NEAREST, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+        gl.texImage2D(this. gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, this.colorFBOWidth, this.colorFBOHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+        // color texture setup
+        this.colorTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.colorFBOWidth, this.colorFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        // normal texture setup
+        this.normalTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
 
+        this.colorFramebuffer = this.#createFramebuffer(gl, [this.colorTexture, this.normalTexture], this.depthTexture);
 
-        /////////////////////////////////// SECOND BLUR PASS SETUP
+        /////////////////////////////////// SSAO PASS SETUP
+
 
         this.resize();
 
@@ -259,7 +295,7 @@ export class SSAODemo {
         this.control = new OrbitControl(this.canvas, this.camera, () => this.#updateCameraMatrix());
     }
 
-    #createFramebuffer(gl, colorAttachements) {
+    #createFramebuffer(gl, colorAttachements, depthAttachement) {
         const fbo = gl.createFramebuffer();
         const drawBuffers = [];
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -273,7 +309,15 @@ export class SSAODemo {
                 0);
             drawBuffers.push(attachmentPoint);
         });
+        if (depthAttachement) {
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthAttachement, 0);
+        }
         gl.drawBuffers(drawBuffers);
+
+        if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE) {
+            console.error('could not complete render framebuffer setup', gl.checkFramebufferStatus(gl.FRAMEBUFFER))
+        }
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         return fbo;
     }
@@ -363,21 +407,24 @@ export class SSAODemo {
     #resizeTextures(gl) {
         const clientWidth = gl.canvas.clientWidth;
         const clientHeight = gl.canvas.clientHeight;
-        this.drawFramebufferWidth = clientWidth;
-        this.drawFramebufferHeight = clientHeight;
+        this.colorFBOWidth = clientWidth;
+        this.colorFBOHeight = clientHeight;
 
-        // resize draw/blit textures and buffers
-        /*gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthRenderbuffer);
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, gl.DEPTH_COMPONENT32F, clientWidth, clientHeight);
-        gl.bindRenderbuffer(gl.RENDERBUFFER, this.colorRenderbuffer);
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, gl.getParameter(gl.MAX_SAMPLES), gl.RGBA8, clientWidth, clientHeight);
+        // resize color textures and buffers
         gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-        gl.texImage2D(this. gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, clientWidth, clientHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+        gl.texImage2D(this. gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, this.colorFBOWidth, this.colorFBOHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
         gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, clientWidth, clientHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.colorFBOWidth, this.colorFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+        // recreate the normal texture
+        this.normalTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.colorFramebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.normalTexture, 0);
 
         // resize blur texture
-        gl.bindTexture(gl.TEXTURE_2D, this.hex1VerticalBlurTexture);
+        /*gl.bindTexture(gl.TEXTURE_2D, this.hex1VerticalBlurTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.drawFramebufferWidth, this.drawFramebufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         gl.bindTexture(gl.TEXTURE_2D, this.hex1DiagonalBlurTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.drawFramebufferWidth, this.drawFramebufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -421,9 +468,6 @@ export class SSAODemo {
         if (this.pane) {
             const maxFar = 700;
 
-            const cameraFolder = this.pane.addFolder({ title: 'Camera' });
-            this.#createTweakpaneSlider(cameraFolder, this.camera, 'near', 'near', 1, maxFar, null, () => this.#updateProjectionMatrix(this.gl));
-            this.#createTweakpaneSlider(cameraFolder, this.camera, 'far', 'far', 1, maxFar, null, () => this.#updateProjectionMatrix(this.gl));
             const blurSettings = this.pane.addFolder({ title: 'SSAO Settings' });
         }
     }

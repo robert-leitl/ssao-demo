@@ -8,11 +8,13 @@ uniform float u_frames;
 
 in vec3 v_position;
 in vec3 v_normal;
+in vec3 v_viewNormal;
 in vec2 v_uv;
 in vec3 v_surfaceToView;
 in vec3 v_viewPosition;
 
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outNormals;
 
 #define PI 3.1415926535
 
@@ -54,4 +56,6 @@ void main() {
 
     outColor = vec4(color, 1.);
     //outColor = vec4(N * 0.5 + .5, 1.);
+
+    outNormals = vec4(normalize(v_viewNormal), 0.);
 }

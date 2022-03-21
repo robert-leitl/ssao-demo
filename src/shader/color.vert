@@ -13,6 +13,7 @@ in vec2 a_uv;
 out vec3 v_position;
 out vec3 v_viewPosition;
 out vec3 v_normal;
+out vec3 v_viewNormal;
 out vec2 v_uv;
 out vec3 v_surfaceToView;
 
@@ -25,4 +26,5 @@ void main() {
     v_surfaceToView = u_cameraPosition - worldPosition.xyz;
     v_position = a_position.xyz;
     v_viewPosition = viewPosition.xyz;
+    v_viewNormal = (u_viewMatrix * vec4(v_normal, 0.)).xyz;
 }
