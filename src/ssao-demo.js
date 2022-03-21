@@ -5,6 +5,8 @@ import { RoundedBoxGeometry } from './rounded-box-geometry';
 
 import colorVertShaderSource from './shader/color.vert';
 import colorFragShaderSource from './shader/color.frag';
+import ssaoVertShaderSource from './shader/ssao.vert';
+import ssaoFragShaderSource from './shader/ssao.frag';
 import compositeVertShaderSource from './shader/composite.vert';
 import compositeFragShaderSource from './shader/composite.frag';
 
@@ -15,6 +17,8 @@ export class SSAODemo {
     #frames = 0;
     #deltaTime = 0;
     #isDestroyed = false;
+
+    SSAO_SCALE = 0.5;
 
     camera = {
         matrix: mat4.create(),
@@ -27,9 +31,8 @@ export class SSAODemo {
         up: vec3.fromValues(0, 1, 0)
     };
 
-    blur = {
-        radius: 7,
-        scale: 2
+    ssao = {
+        
     }
 
     constructor(canvas, pane, oninit = null) {
@@ -76,6 +79,7 @@ export class SSAODemo {
         gl.enable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
 
+        // color/detph/normals pass
         this.#setFramebuffer(gl, this.colorFramebuffer, this.colorFBOWidth, this.colorFBOHeight);
         gl.useProgram(this.colorProgram);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -97,6 +101,21 @@ export class SSAODemo {
         this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [0, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0.3], Math.PI / 3);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
+        // ssao pass
+        this.#setFramebuffer(gl, this.ssaoFramebuffer, this.ssaoFBOWidth, this.ssaoFBOHeight);
+        gl.useProgram(this.ssaoProgram);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.bindVertexArray(this.quadVAO);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+        gl.uniform1i(this.ssaoLocations.u_depthTexture, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture);
+        gl.uniform1i(this.ssaoLocations.u_normalTexture, 1);
+        gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
+        this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
+
         gl.useProgram(this.compositeProgram);
         gl.clearColor(1, 1, 1, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -104,6 +123,9 @@ export class SSAODemo {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
         gl.uniform1i(this.compositeLocations.u_colorTexture, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
+        gl.uniform1i(this.compositeLocations.u_ssaoTexture, 1);
         gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
     }
 
@@ -148,6 +170,7 @@ export class SSAODemo {
         // setup programs
         this.colorProgram = this.#createProgram(gl, [colorVertShaderSource, colorFragShaderSource]);
         this.compositeProgram = this.#createProgram(gl, [compositeVertShaderSource, compositeFragShaderSource], null, { a_position: 0 });
+        this.ssaoProgram = this.#createProgram(gl, [ssaoVertShaderSource, ssaoFragShaderSource], null, { a_position: 0 });
 
         // find the locations
         this.colorLocations = {
@@ -167,6 +190,11 @@ export class SSAODemo {
             a_position: gl.getAttribLocation(this.compositeProgram, 'a_position'),
             u_colorTexture: gl.getUniformLocation(this.compositeProgram, 'u_colorTexture'),
             u_ssaoTexture: gl.getUniformLocation(this.compositeProgram, 'u_ssaoTexture')
+        };
+        this.ssaoLocations = {
+            a_position: gl.getAttribLocation(this.ssaoProgram, 'a_position'),
+            u_depthTexture: gl.getUniformLocation(this.ssaoProgram, 'u_depthTexture'),
+            u_normalTexture: gl.getUniformLocation(this.ssaoProgram, 'u_normalTexture')
         };
         
         // setup uniforms
@@ -241,7 +269,7 @@ export class SSAODemo {
         // depth texture setup
         this.depthTexture = this.#createAndSetupTexture(gl, gl.NEAREST, gl.NEAREST);
         gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-        gl.texImage2D(this. gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, this.colorFBOWidth, this.colorFBOHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, this.colorFBOWidth, this.colorFBOHeight, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
         // color texture setup
         this.colorTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
         gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
@@ -255,6 +283,13 @@ export class SSAODemo {
 
         /////////////////////////////////// SSAO PASS SETUP
 
+        this.ssaoFBOWidth = this.colorFBOWidth * this.SSAO_SCALE;
+        this.ssaoFBOHeight = this.colorFBOHeight * this.SSAO_SCALE;
+
+        this.ssaoTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, null);
+        this.ssaoFramebuffer = this.#createFramebuffer(gl, [this.ssaoTexture]);
 
         this.resize();
 
@@ -409,6 +444,8 @@ export class SSAODemo {
         const clientHeight = gl.canvas.clientHeight;
         this.colorFBOWidth = clientWidth;
         this.colorFBOHeight = clientHeight;
+        this.ssaoFBOWidth = this.colorFBOWidth * this.SSAO_SCALE;
+        this.ssaoFBOHeight = this.colorFBOHeight * this.SSAO_SCALE;
 
         // resize color textures and buffers
         gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
@@ -423,13 +460,9 @@ export class SSAODemo {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.colorFramebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.normalTexture, 0);
 
-        // resize blur texture
-        /*gl.bindTexture(gl.TEXTURE_2D, this.hex1VerticalBlurTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.drawFramebufferWidth, this.drawFramebufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.bindTexture(gl.TEXTURE_2D, this.hex1DiagonalBlurTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.drawFramebufferWidth, this.drawFramebufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.bindTexture(gl.TEXTURE_2D, this.hex2BlurTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.drawFramebufferWidth, this.drawFramebufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);*/
+        // resize ssao texture
+        gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         
         // reset bindings
         gl.bindRenderbuffer(gl.RENDERBUFFER, null);

@@ -49,7 +49,7 @@ void main() {
     float diffuse = max(0., NdL) * 0.15;
 
     // specular shading
-    float specular = pow(max(0., dot(H, L)), 50.) * 0.5;
+    float specular = pow(max(0., dot(H, L)), 12.) * 0.9;
 
     // color
     vec3 color = albedo + ambient * fresnel * .4 + specular * 0.2 + diffuse;
