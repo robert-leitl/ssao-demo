@@ -12,5 +12,7 @@ void main() {
     vec4 color = texture(u_colorTexture, uv);
     vec4 ssao = texture(u_ssaoTexture, uv);
     outColor = vec4(ssao.r);
+    outColor = color * ssao.r;
+    //outColor = vec4(ssao.r);
     //outColor = color;
 }

@@ -18,7 +18,7 @@ export class SSAODemo {
     #deltaTime = 0;
     #isDestroyed = false;
 
-    SSAO_SCALE = 0.5;
+    SSAO_SCALE = 1;
 
     camera = {
         matrix: mat4.create(),
@@ -83,7 +83,7 @@ export class SSAODemo {
         this.#setFramebuffer(gl, this.colorFramebuffer, this.colorFBOWidth, this.colorFBOHeight);
         gl.useProgram(this.colorProgram);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.clearColor(.97, .97, 0.97, 1.);
+        gl.clearColor(.97, .97, 0.97, 0.);
         gl.uniformMatrix4fv(this.colorLocations.u_viewMatrix, false, this.colorUniforms.u_viewMatrix);
         gl.uniformMatrix4fv(this.colorLocations.u_projectionMatrix, false, this.colorUniforms.u_projectionMatrix);
         gl.uniform3f(this.colorLocations.u_cameraPosition, this.camera.position[0], this.camera.position[1], this.camera.position[2]);
@@ -113,6 +113,10 @@ export class SSAODemo {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, this.normalTexture);
         gl.uniform1i(this.ssaoLocations.u_normalTexture, 1);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, this.noiseTexture);
+        gl.uniform1i(this.ssaoLocations.u_noiseTexture, 2);
+        gl.uniformMatrix4fv(this.ssaoLocations.u_inversProjectionMatrix, false, mat4.invert(mat4.create(), this.colorUniforms.u_projectionMatrix));
         gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
@@ -194,7 +198,9 @@ export class SSAODemo {
         this.ssaoLocations = {
             a_position: gl.getAttribLocation(this.ssaoProgram, 'a_position'),
             u_depthTexture: gl.getUniformLocation(this.ssaoProgram, 'u_depthTexture'),
-            u_normalTexture: gl.getUniformLocation(this.ssaoProgram, 'u_normalTexture')
+            u_normalTexture: gl.getUniformLocation(this.ssaoProgram, 'u_normalTexture'),
+            u_noiseTexture: gl.getUniformLocation(this.ssaoProgram, 'u_noiseTexture'),
+            u_inversProjectionMatrix: gl.getUniformLocation(this.ssaoProgram, 'u_inversProjectionMatrix')
         };
         
         // setup uniforms
@@ -288,8 +294,23 @@ export class SSAODemo {
 
         this.ssaoTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
         gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, null);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RED, gl.UNSIGNED_BYTE, null);
         this.ssaoFramebuffer = this.#createFramebuffer(gl, [this.ssaoTexture]);
+
+
+        // create noise texture
+        const noiseTextureSize = clientWidth * clientHeight;
+        const noiseTextureData = new Float32Array(noiseTextureSize * 2);
+        for (let i = 0; i < noiseTextureSize; ++i) {
+            const ndx = i * 2;
+            noiseTextureData[ndx]     = Math.random() * 2.0 - 1.0;
+            noiseTextureData[ndx + 1] = Math.random() * 2.0 - 1.0;
+        }    
+        this.noiseTexture = this.#createAndSetupTexture(gl, gl.NEAREST, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D, this.noiseTexture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RG16F, clientWidth, clientHeight);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, clientWidth, clientHeight, gl.RG, gl.FLOAT, noiseTextureData);
+    
 
         this.resize();
 
