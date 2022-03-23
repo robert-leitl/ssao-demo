@@ -15,6 +15,7 @@ in vec3 v_viewPosition;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outNormals;
+layout(location = 2) out vec4 outPosition;
 
 #define PI 3.1415926535
 
@@ -58,4 +59,5 @@ void main() {
     //outColor = vec4(N * 0.5 + .5, 1.);
 
     outNormals = vec4(normalize(v_viewNormal), 0.);
+    outPosition = vec4(v_viewPosition, 0.);
 }

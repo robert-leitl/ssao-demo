@@ -14,5 +14,4 @@ void main() {
     outColor = vec4(ssao.r);
     outColor = color * ssao.r;
     //outColor = vec4(ssao.r);
-    //outColor = color;
 }

@@ -116,7 +116,11 @@ export class SSAODemo {
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, this.noiseTexture);
         gl.uniform1i(this.ssaoLocations.u_noiseTexture, 2);
-        gl.uniformMatrix4fv(this.ssaoLocations.u_inversProjectionMatrix, false, mat4.invert(mat4.create(), this.colorUniforms.u_projectionMatrix));
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, this.positionTexture);
+        gl.uniform1i(this.ssaoLocations.u_positionTexture, 3);
+        //gl.uniform1f(this.ssaoLocations.u_frames, this.#frames);
+        //gl.uniformMatrix4fv(this.ssaoLocations.u_inversProjectionMatrix, false, mat4.invert(mat4.create(), this.colorUniforms.u_projectionMatrix));
         gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
@@ -199,8 +203,10 @@ export class SSAODemo {
             a_position: gl.getAttribLocation(this.ssaoProgram, 'a_position'),
             u_depthTexture: gl.getUniformLocation(this.ssaoProgram, 'u_depthTexture'),
             u_normalTexture: gl.getUniformLocation(this.ssaoProgram, 'u_normalTexture'),
+            u_positionTexture: gl.getUniformLocation(this.ssaoProgram, 'u_positionTexture'),
             u_noiseTexture: gl.getUniformLocation(this.ssaoProgram, 'u_noiseTexture'),
-            u_inversProjectionMatrix: gl.getUniformLocation(this.ssaoProgram, 'u_inversProjectionMatrix')
+            //u_frames: gl.getUniformLocation(this.ssaoProgram, 'u_frames')
+            //u_inversProjectionMatrix: gl.getUniformLocation(this.ssaoProgram, 'u_inversProjectionMatrix')
         };
         
         // setup uniforms
@@ -284,8 +290,12 @@ export class SSAODemo {
         this.normalTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
         gl.bindTexture(gl.TEXTURE_2D, this.normalTexture);
         gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
+        // position texture setup
+        this.positionTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.positionTexture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
 
-        this.colorFramebuffer = this.#createFramebuffer(gl, [this.colorTexture, this.normalTexture], this.depthTexture);
+        this.colorFramebuffer = this.#createFramebuffer(gl, [this.colorTexture, this.normalTexture, this.positionTexture], this.depthTexture);
 
         /////////////////////////////////// SSAO PASS SETUP
 
@@ -480,6 +490,13 @@ export class SSAODemo {
         gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.colorFramebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.normalTexture, 0);
+
+        // recreate the position texture
+        this.positionTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.positionTexture);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, this.colorFBOWidth, this.colorFBOHeight);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.colorFramebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.positionTexture, 0);
 
         // resize ssao texture
         gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
