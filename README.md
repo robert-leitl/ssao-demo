@@ -1,1 +1,10 @@
-# ssao-demo
+# WebGL - SSAO
+
+![SSAO Screenshot](https://github.com/robert-leitl/ssao-demo/blob/main/cover.jpg?raw=true)
+
+Rough implementation of a screen space ambient obscurance method inspired by [webgl2examples](https://github.com/tsherif/webgl2examples/blob/master/ssao.html)
+
+### Features
+- Multi-render targets MRT
+- Bilateral gaussian blur pass
+- Equirectangular environment map (environement map: HDRi Pack 2 by [zbyg](https://www.deviantart.com/zbyg/art/HDRi-Pack-2-103458406))

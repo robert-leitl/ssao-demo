@@ -20,6 +20,7 @@
     "rimraf": "^3.0.2"
   },
   "dependencies": {
+    "@tweakpane/plugin-essentials": "^0.1.4",
     "gl-matrix": "^3.4.3",
     "tweakpane": "^3.0.6"
   }

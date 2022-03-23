@@ -1,4 +1,3 @@
-
 import { mat4, quat, vec3 } from 'gl-matrix';
 import { OrbitControl } from './orbit-control';
 import { RoundedBoxGeometry } from './rounded-box-geometry';
@@ -7,6 +6,10 @@ import colorVertShaderSource from './shader/color.vert';
 import colorFragShaderSource from './shader/color.frag';
 import ssaoVertShaderSource from './shader/ssao.vert';
 import ssaoFragShaderSource from './shader/ssao.frag';
+import horizontalBlurVertShaderSource from './shader/bilateral-gaussian-blur-horizontal.vert';
+import horizontalBlurFragShaderSource from './shader/bilateral-gaussian-blur-horizontal.frag';
+import verticalBlurVertShaderSource from './shader/bilateral-gaussian-blur-vertical.vert';
+import verticalBlurFragShaderSource from './shader/bilateral-gaussian-blur-vertical.frag';
 import compositeVertShaderSource from './shader/composite.vert';
 import compositeFragShaderSource from './shader/composite.frag';
 
@@ -18,7 +21,18 @@ export class SSAODemo {
     #deltaTime = 0;
     #isDestroyed = false;
 
-    SSAO_SCALE = 1;
+    SSAO_SCALE = .75;
+
+    PASS_COMPOSITE = 0;
+    PASS_SSAO = 1;
+    PASS_COLOR = 2;
+
+    passIndex = this.PASS_COMPOSITE;
+    passLabels = [
+        'composite',
+        'ssao',
+        'color'
+    ];
 
     camera = {
         matrix: mat4.create(),
@@ -32,8 +46,14 @@ export class SSAODemo {
     };
 
     ssao = {
-        
+        bias: 0.05,
+        maxKernelRadius: 90.,
+        blurScale: 1.5,
+        attenuationScale: 0.1,
+        enableBlur: true
     }
+
+    acc = 0;
 
     constructor(canvas, pane, oninit = null) {
         this.canvas = canvas;
@@ -58,16 +78,20 @@ export class SSAODemo {
         this.#updateProjectionMatrix(gl);
     }
 
-    run(time = 0) {
+    run(time = 0) {+
+        this.fpsGraph.begin();
+
         this.#deltaTime = time - this.#time;
         this.#time = time;
         this.#frames += this.#deltaTime / 16;
 
         if (this.#isDestroyed) return;
 
-        this.control.update();
+        this.control.update(this.#deltaTime);
 
         this.#render();
+
+        this.fpsGraph.end();
 
         requestAnimationFrame((t) => this.run(t));
     }
@@ -91,14 +115,16 @@ export class SSAODemo {
         gl.bindTexture(gl.TEXTURE_2D, this.envMapTexture);
         gl.uniform1i(this.colorLocations.u_envMap, 0);
         //gl.uniform1f(this.colorLocations.u_frames, this.#frames);
-        const s1 = (Math.sin(this.#frames * 0.08) * 0.5 + .5) * 0.2;
-        const s2 = (Math.cos(this.#frames * 0.06) * 0.5 + .5) * 0.2;
-        const s3 = (Math.sin(this.#frames * 0.02) * 0.5 + .5) * 0.2;
+        const s1 = (Math.sin(this.#frames * 0.08) * 0.5 + .5) * 0.5;
+        const s2 = (Math.cos(this.#frames * 0.06) * 0.5 + .5) * 0.3;
+        const s3 = (Math.sin(this.#frames * 0.02) * 0.5 + .5) * 0.4;
+        const v = Math.min(Math.abs(this.control.velocity[1]) / 6, 1);
+        this.acc += (v - this.acc) / 3;
         this.#renderCube(gl, this.cube1VAO, this.cube1Buffers.numElem, [1., 0.15, 0.15], [0, 0, 0], [25 - s1 * 5, 25 - s2 * 5, 25 - s3 * 5], [0, 1, 0.1], Math.PI / 4);
-        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.95, .8, 0.2], [10, 25 - 1.5, 0], [20, 20 - s1 * 3, 20 - s2 * 2], [0, 1, 0], 0);
-        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-23, 2, 10], [18, 18 - s2 * 4, 18 - s1 * 2], [0.1, 1, 0],  3 * Math.PI / 4.5);
-        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .95, .4], [20, -12, 13], [12 - s1 * 3, 12, 12 - s2 * 1], [0, 1, 0],  0);
-        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [0, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0.3], Math.PI / 3);
+        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.95, .8, 0.2], [10 * this.acc, 25 - 1.5, 0], [20, 20 - s1 * 3, 20 - s2 * 2], [0, 1, 0], 0);
+        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-23 - 5. * this.acc, 2, 10], [18, 18 - s2 * 4, 18 - s1 * 2], [0.1, 1, 0],  3 * Math.PI / 4.5);
+        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .95, .4], [20 + 5 * this.acc, -12, 13], [12 - s1 * 3, 12, 12 - s2 * 1], [0, 1, 0],  0);
+        this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [5 *  this.acc, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0.3], Math.PI / 3);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
         // ssao pass
@@ -119,8 +145,46 @@ export class SSAODemo {
         gl.activeTexture(gl.TEXTURE3);
         gl.bindTexture(gl.TEXTURE_2D, this.positionTexture);
         gl.uniform1i(this.ssaoLocations.u_positionTexture, 3);
+        gl.uniform1f(this.ssaoLocations.u_bias, this.ssao.bias);
+        gl.uniform1f(this.ssaoLocations.u_maxKernelRadius, this.ssao.maxKernelRadius);
+        gl.uniform1f(this.ssaoLocations.u_attentuationScale, this.ssao.attenuationScale);
+        gl.uniform1f(this.ssaoLocations.u_scale, this.SSAO_SCALE);
+        gl.uniform1f(this.ssaoLocations.u_near, this.camera.near);
+        gl.uniform1f(this.ssaoLocations.u_far, this.camera.far);
         //gl.uniform1f(this.ssaoLocations.u_frames, this.#frames);
         //gl.uniformMatrix4fv(this.ssaoLocations.u_inversProjectionMatrix, false, mat4.invert(mat4.create(), this.colorUniforms.u_projectionMatrix));
+        gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
+        this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
+
+        // horizontal blur pass
+        this.#setFramebuffer(gl, this.horizontalBlurFramebuffer, this.ssaoFBOWidth, this.ssaoFBOHeight);
+        gl.useProgram(this.horizontalBlurProgram);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.bindVertexArray(this.quadVAO);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+        gl.uniform1i(this.horizontalBlurLocations.u_depthTexture, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
+        gl.uniform1i(this.horizontalBlurLocations.u_colorTexture, 1);
+        gl.uniform1f(this.horizontalBlurLocations.u_scale, this.ssao.blurScale);
+        gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
+        this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
+
+        // vertical blur pass
+        this.#setFramebuffer(gl, this.verticalBlurFramebuffer, this.ssaoFBOWidth, this.ssaoFBOHeight);
+        gl.useProgram(this.verticalBlurProgram);
+        gl.clearColor(1, 1, 1, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.bindVertexArray(this.quadVAO);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+        gl.uniform1i(this.verticalBlurLocations.u_depthTexture, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.horizontalBlurTexture);
+        gl.uniform1i(this.verticalBlurLocations.u_colorTexture, 1);
+        gl.uniform1f(this.verticalBlurLocations.u_scale, this.ssao.blurScale);
         gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 
@@ -132,8 +196,9 @@ export class SSAODemo {
         gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
         gl.uniform1i(this.compositeLocations.u_colorTexture, 0);
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
+        gl.bindTexture(gl.TEXTURE_2D, this.ssao.enableBlur ? this.verticalBlurTexture : this.ssaoTexture);
         gl.uniform1i(this.compositeLocations.u_ssaoTexture, 1);
+        gl.uniform1i(this.compositeLocations.u_passIndex, this.passIndex);
         gl.drawArrays(gl.TRIANGLES, 0, this.quadBuffers.numElem);
     }
 
@@ -179,6 +244,8 @@ export class SSAODemo {
         this.colorProgram = this.#createProgram(gl, [colorVertShaderSource, colorFragShaderSource]);
         this.compositeProgram = this.#createProgram(gl, [compositeVertShaderSource, compositeFragShaderSource], null, { a_position: 0 });
         this.ssaoProgram = this.#createProgram(gl, [ssaoVertShaderSource, ssaoFragShaderSource], null, { a_position: 0 });
+        this.horizontalBlurProgram = this.#createProgram(gl, [horizontalBlurVertShaderSource, horizontalBlurFragShaderSource], null, { a_position: 0 });
+        this.verticalBlurProgram = this.#createProgram(gl, [verticalBlurVertShaderSource, verticalBlurFragShaderSource], null, { a_position: 0 });
 
         // find the locations
         this.colorLocations = {
@@ -197,7 +264,8 @@ export class SSAODemo {
         this.compositeLocations = {
             a_position: gl.getAttribLocation(this.compositeProgram, 'a_position'),
             u_colorTexture: gl.getUniformLocation(this.compositeProgram, 'u_colorTexture'),
-            u_ssaoTexture: gl.getUniformLocation(this.compositeProgram, 'u_ssaoTexture')
+            u_ssaoTexture: gl.getUniformLocation(this.compositeProgram, 'u_ssaoTexture'),
+            u_passIndex: gl.getUniformLocation(this.compositeProgram, 'u_passIndex')
         };
         this.ssaoLocations = {
             a_position: gl.getAttribLocation(this.ssaoProgram, 'a_position'),
@@ -205,8 +273,26 @@ export class SSAODemo {
             u_normalTexture: gl.getUniformLocation(this.ssaoProgram, 'u_normalTexture'),
             u_positionTexture: gl.getUniformLocation(this.ssaoProgram, 'u_positionTexture'),
             u_noiseTexture: gl.getUniformLocation(this.ssaoProgram, 'u_noiseTexture'),
+            u_bias: gl.getUniformLocation(this.ssaoProgram, 'u_bias'),
+            u_maxKernelRadius: gl.getUniformLocation(this.ssaoProgram, 'u_maxKernelRadius'),
+            u_near: gl.getUniformLocation(this.ssaoProgram, 'u_near'),
+            u_far: gl.getUniformLocation(this.ssaoProgram, 'u_far'),
+            u_scale: gl.getUniformLocation(this.ssaoProgram, 'u_scale'),
+            u_attentuationScale: gl.getUniformLocation(this.ssaoProgram, 'u_attentuationScale'),
             //u_frames: gl.getUniformLocation(this.ssaoProgram, 'u_frames')
             //u_inversProjectionMatrix: gl.getUniformLocation(this.ssaoProgram, 'u_inversProjectionMatrix')
+        };
+        this.horizontalBlurLocations = {
+            a_position: gl.getAttribLocation(this.horizontalBlurProgram, 'a_position'),
+            u_depthTexture: gl.getUniformLocation(this.horizontalBlurProgram, 'u_depthTexture'),
+            u_colorTexture: gl.getUniformLocation(this.horizontalBlurProgram, 'u_colorTexture'),
+            u_scale: gl.getUniformLocation(this.horizontalBlurProgram, 'u_scale')
+        };
+        this.verticalBlurLocations = {
+            a_position: gl.getAttribLocation(this.verticalBlurProgram, 'a_position'),
+            u_depthTexture: gl.getUniformLocation(this.verticalBlurProgram, 'u_depthTexture'),
+            u_colorTexture: gl.getUniformLocation(this.verticalBlurProgram, 'u_colorTexture'),
+            u_scale: gl.getUniformLocation(this.verticalBlurProgram, 'u_scale')
         };
         
         // setup uniforms
@@ -306,6 +392,18 @@ export class SSAODemo {
         gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RED, gl.UNSIGNED_BYTE, null);
         this.ssaoFramebuffer = this.#createFramebuffer(gl, [this.ssaoTexture]);
+
+        /////////////////////////////////// SSAO BLUR PASSES SETUP
+
+        this.horizontalBlurTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.horizontalBlurTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        this.horizontalBlurFramebuffer = this.#createFramebuffer(gl, [this.horizontalBlurTexture]);
+
+        this.verticalBlurTexture = this.#createAndSetupTexture(gl, gl.LINEAR, gl.LINEAR);
+        gl.bindTexture(gl.TEXTURE_2D, this.verticalBlurTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        this.verticalBlurFramebuffer = this.#createFramebuffer(gl, [this.verticalBlurTexture]);
 
 
         // create noise texture
@@ -501,6 +599,12 @@ export class SSAODemo {
         // resize ssao texture
         gl.bindTexture(gl.TEXTURE_2D, this.ssaoTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+        // resize blur pass textures
+        gl.bindTexture(gl.TEXTURE_2D, this.horizontalBlurTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.bindTexture(gl.TEXTURE_2D, this.verticalBlurTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.ssaoFBOWidth, this.ssaoFBOHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         
         // reset bindings
         gl.bindRenderbuffer(gl.RENDERBUFFER, null);
@@ -539,7 +643,36 @@ export class SSAODemo {
         if (this.pane) {
             const maxFar = 700;
 
-            const blurSettings = this.pane.addFolder({ title: 'SSAO Settings' });
+            this.fpsGraph = this.pane.addBlade({
+                view: 'fpsgraph',
+                label: 'fps',
+                lineCount: 1,
+                maxValue: 120,
+                minValue: 0
+            });
+
+            const cameraFolder = this.pane.addFolder({ title: 'Camera' });
+            this.#createTweakpaneSlider(cameraFolder, this.camera, 'near', 'near', 1, maxFar, null, () => this.#updateProjectionMatrix(this.gl));
+            this.#createTweakpaneSlider(cameraFolder, this.camera, 'far', 'far', 1, maxFar, null, () => this.#updateProjectionMatrix(this.gl));
+
+            const ssaoSettings = this.pane.addFolder({ title: 'SSAO Settings' });
+            this.#createTweakpaneSlider(ssaoSettings, this.ssao, 'maxKernelRadius', 'radius', 5, 200);
+            this.#createTweakpaneSlider(ssaoSettings, this.ssao, 'attenuationScale', 'attenuation', 0.05, 0.5);
+            this.#createTweakpaneSlider(ssaoSettings, this.ssao, 'bias', 'bias', 0.01, 1);
+            this.#createTweakpaneSlider(ssaoSettings, this.ssao, 'blurScale', 'blur', 1, 10);
+            ssaoSettings.addInput(this.ssao, 'enableBlur');
+
+            const passSettings = this.pane.addFolder({ title: 'Passes' });
+            passSettings.addInput(this, 'passIndex', {
+                view: 'radiogrid',
+                groupName: 'pass',
+                size: [1, 3],
+                cells: (x, y) => ({
+                  title: `${this.passLabels[y]}`,
+                  value: y,
+                }),
+                label: 'pass',
+              });
         }
     }
 

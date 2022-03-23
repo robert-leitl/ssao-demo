@@ -1,4 +1,5 @@
 import { Pane } from 'tweakpane';
+import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { SSAODemo } from './ssao-demo';
 
 const queryString = window.location.search;
@@ -21,6 +22,7 @@ window.addEventListener('load', () => {
     let pane;
     if (DEBUG) {
         pane = new Pane({ title: 'Settings' });
+        pane.registerPlugin(EssentialsPlugin);
     }
 
     sketch = new SSAODemo(canvas, pane, (sketch) => {

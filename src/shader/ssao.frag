@@ -7,17 +7,19 @@ uniform sampler2D u_normalTexture;
 uniform sampler2D u_positionTexture;
 uniform sampler2D u_noiseTexture;
 uniform mat4 u_inversProjectionMatrix;
+uniform float u_bias;
+uniform float u_attentuationScale;
+uniform float u_maxKernelRadius;
+uniform float u_near;
+uniform float u_far;
+uniform float u_scale;
 
 out float outOcclusion;
 
-float bias = 0.05;
-float maxKernelRadius = 90.;
-float near = 80.;
-float far = 150.;
-float scale = 1.;
-
 #define SIN45 0.707107
 
+// reconstructs the view space position given the screen space coordinates
+// along with the depth
 vec3 reconstructPosition(vec2 uv, float depth) {
     float x = uv.x * 2. - 1.;   // = x / w
     float y = uv.y * 2. - 1.;   // = y / w
@@ -27,9 +29,9 @@ vec3 reconstructPosition(vec2 uv, float depth) {
     return pos.xyz / pos.w;
 }
 
+// reads the view space position from the buffer
 vec3 getViewPosition(vec2 uv) {
-    vec3 pos = texture(u_positionTexture, uv).xyz;
-    return pos;
+    return texture(u_positionTexture, uv).xyz;
 }
 
 float getOcclusion(vec3 origin, vec3 normal, vec2 position, float radius) {
@@ -37,15 +39,15 @@ float getOcclusion(vec3 origin, vec3 normal, vec2 position, float radius) {
     //vec3 occluderPosition = reconstructPosition(position, occluderDepth);
     vec3 occluderPosition = getViewPosition(position);
     vec3 dir = occluderPosition - origin;
-    float inRange = smoothstep(0., 1., (radius * 0.1) / length(dir));
-    float intensity = max(dot(normal, normalize(dir)) - bias, 0.);
-    float attenuation = ((radius * 0.1) / length(dir)) * inRange;
+    float inRange = smoothstep(0., 1., (radius * u_attentuationScale) / length(dir));
+    float intensity = max(dot(normal, normalize(dir)) - u_bias, 0.);
+    float attenuation = ((radius * u_attentuationScale) / length(dir)) * inRange;
 
     return intensity * attenuation;
 }
 
 void main() {
-    vec2 texelSize = 1. / (vec2(textureSize(u_depthTexture, 0)) * scale);
+    vec2 texelSize = 1. / (vec2(textureSize(u_depthTexture, 0)) * u_scale);
     vec2 p = gl_FragCoord.xy * texelSize;
     float depth = texture(u_depthTexture, p).x;
     vec3 normal = normalize(texture(u_normalTexture, p).xyz);
@@ -55,8 +57,8 @@ void main() {
     vec2 n2 = abs(normalize(texture(u_noiseTexture, p * 2.).xy)) * 0.7 + 0.3;
     vec2 n3 = abs(normalize(texture(u_noiseTexture, p * 3.).xy)) * 0.7 + 0.3;
 
-    float linearDepth = (-position.z - near) / (far - near);
-    float kernelRadius = maxKernelRadius * (1.0 - linearDepth);
+    float liu_nearDepth = (-position.z - u_near) / (u_far - u_near);
+    float kernelRadius = u_maxKernelRadius * (1.0 - liu_nearDepth);
 
     const int KERNEL_SIZE = 4;
     vec2 kernel[KERNEL_SIZE];

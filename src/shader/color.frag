@@ -53,7 +53,7 @@ void main() {
     float specular = pow(max(0., dot(H, L)), 12.) * 0.9;
 
     // color
-    vec3 color = albedo + ambient * fresnel * .4 + specular * 0.2 + diffuse;
+    vec3 color = albedo + ambient * fresnel * .4 + specular * 0.1 + diffuse;
 
     outColor = vec4(color, 1.);
     //outColor = vec4(N * 0.5 + .5, 1.);

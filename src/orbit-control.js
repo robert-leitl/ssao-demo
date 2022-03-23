@@ -2,6 +2,8 @@ import { mat4, quat, vec3 } from 'gl-matrix';
 
 export class OrbitControl {
 
+    velocity = [0, 0];
+
     constructor(canvas, camera, updateCallback) {
         this.pointerDown = false;
         this.pointerDownPos = { x: 0, y: 0 };
@@ -32,9 +34,11 @@ export class OrbitControl {
         });
     }
 
-    update() {
+    update(deltaTime) {
+        const timeScale = 16 / (deltaTime + 0.01);
+
         if (this.pointerDown) {
-            const damping = 10;
+            const damping = 10 * timeScale;
             this.followPos.x += (this.pointerPos.x - this.followPos.x) / damping;
             this.followPos.y += (this.pointerPos.y - this.followPos.y) / damping;
 
@@ -44,16 +48,22 @@ export class OrbitControl {
             };
             this.prevFollowPos = { ...this.followPos };
 
-            const speed = 0.2;
+            const speed = 0.2 * timeScale;
             this.phi = delta.x * speed;
             this.theta = delta.y * speed;
         } else {
-            this.phi *= 0.96;
-            this.theta *= 0.96;
+            const decc = 0.96 / Math.min(timeScale, 1);
+            this.phi *= decc;
+            this.theta *= decc;
         }
+
+        const prevRotation = [...this.camera.rotation];
 
         this.camera.rotation[0] -= this.theta;
         this.camera.rotation[1] -= this.phi;
+
+        this.velocity[0] = this.camera.rotation[0] - prevRotation[0];
+        this.velocity[1] = this.camera.rotation[1] - prevRotation[1];
 
         const thetaLimitUp = 80;
         const thetaLimitDown = -80;
