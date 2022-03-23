@@ -2,7 +2,7 @@
 
 ![SSAO Screenshot](https://github.com/robert-leitl/ssao-demo/blob/main/cover.jpg?raw=true)
 
-Rough implementation of a screen space ambient obscurance method inspired by [webgl2examples](https://github.com/tsherif/webgl2examples/blob/master/ssao.html)
+Rough implementation of a screen space ambient occlusion method inspired by [webgl2examples](https://github.com/tsherif/webgl2examples/blob/master/ssao.html)
 
 ### Features
 - Multi-render targets MRT
