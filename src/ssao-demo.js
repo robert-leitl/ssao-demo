@@ -101,7 +101,7 @@ export class SSAODemo {
         const gl = this.gl;
 
         gl.enable(gl.DEPTH_TEST);
-        gl.disable(gl.CULL_FACE);
+        gl.enable(gl.CULL_FACE);
 
         // color/detph/normals pass
         this.#setFramebuffer(gl, this.colorFramebuffer, this.colorFBOWidth, this.colorFBOHeight);
@@ -641,7 +641,7 @@ export class SSAODemo {
 
     #initTweakpane() {
         if (this.pane) {
-            const maxFar = 700;
+            const maxFar = 200;
 
             this.fpsGraph = this.pane.addBlade({
                 view: 'fpsgraph',
