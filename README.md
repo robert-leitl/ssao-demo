@@ -7,4 +7,5 @@ Rough implementation of a screen space ambient occlusion method inspired by [web
 ### Features
 - Multi-render targets MRT
 - Bilateral gaussian blur pass
+- Rounded box geometry based on [three-rounded-box](https://github.com/pailhead/three-rounded-box/blob/master/index.js)
 - Equirectangular environment map (environement map: HDRi Pack 2 by [zbyg](https://www.deviantart.com/zbyg/art/HDRi-Pack-2-103458406))

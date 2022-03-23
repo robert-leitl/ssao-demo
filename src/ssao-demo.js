@@ -21,7 +21,7 @@ export class SSAODemo {
     #deltaTime = 0;
     #isDestroyed = false;
 
-    SSAO_SCALE = .75;
+    SSAO_SCALE = .5;
 
     PASS_COMPOSITE = 0;
     PASS_SSAO = 1;
@@ -47,9 +47,9 @@ export class SSAODemo {
 
     ssao = {
         bias: 0.05,
-        maxKernelRadius: 90.,
+        maxKernelRadius: 50.,
         blurScale: 1.5,
-        attenuationScale: 0.1,
+        attenuationScale: 0.16,
         enableBlur: true
     }
 
