@@ -122,8 +122,8 @@ export class SSAODemo {
         this.acc += (v - this.acc) / 3;
         this.#renderCube(gl, this.cube1VAO, this.cube1Buffers.numElem, [1., 0.15, 0.15], [0, 0, 0], [25 - s1 * 5, 25 - s2 * 5, 25 - s3 * 5], [0, 1, 0.1], Math.PI / 4);
         this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.95, .8, 0.2], [10 * this.acc, 25 - 1.5, 0], [20, 20 - s1 * 3, 20 - s2 * 2], [0, 1, 0], 0);
-        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-23 - 5. * this.acc, 2, 10], [18, 18 - s2 * 4, 18 - s1 * 2], [0.1, 1, 0],  3 * Math.PI / 4.5);
-        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .95, .4], [20 + 5 * this.acc, -12, 13], [12 - s1 * 3, 12, 12 - s2 * 1], [0, 1, 0],  0);
+        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .4, 1], [-22 - 5. * this.acc, 2, 10], [18, 18 - s2 * 4, 18 - s1 * 2], [0.1, 1, 0],  3 * Math.PI / 4.5);
+        this.#renderCube(gl, this.cube3VAO, this.cube3Buffers.numElem, [.2, .95, .4], [19 + 5 * this.acc, -12, 13], [12 - s1 * 3, 12, 12 - s2 * 1], [0, 1, 0],  0);
         this.#renderCube(gl, this.cube2VAO, this.cube2Buffers.numElem, [.8, 0.8, 0.8], [5 *  this.acc, -20, -15], [15 - s2 * 2, 15, 15 - s1 * 3], [0, 1, 0.3], Math.PI / 3);
         this.#setFramebuffer(gl, null, this.colorFBOWidth, this.colorFBOHeight);
 

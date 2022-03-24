@@ -52,7 +52,7 @@ export class OrbitControl {
             this.phi = delta.x * speed;
             this.theta = delta.y * speed;
         } else {
-            const decc = 0.96 / Math.min(timeScale, 1);
+            const decc = 0.96 / Math.max(timeScale, 1);
             this.phi *= decc;
             this.theta *= decc;
         }
