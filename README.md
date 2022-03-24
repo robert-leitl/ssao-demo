@@ -4,6 +4,8 @@
 
 Rough implementation of a screen space ambient occlusion method inspired by [webgl2examples](https://github.com/tsherif/webgl2examples/blob/master/ssao.html)
 
+[DEMO](https://robert-leitl.github.io/ssao-demo/dist/?debug)
+
 ### Features
 - Multi-render targets MRT
 - Bilateral gaussian blur pass
