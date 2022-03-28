@@ -241,7 +241,7 @@ export class SSAODemo {
         ///////////////////////////////////  PROGRAM SETUP
 
         // setup programs
-        this.colorProgram = this.#createProgram(gl, [colorVertShaderSource, colorFragShaderSource]);
+        this.colorProgram = this.#createProgram(gl, [colorVertShaderSource, colorFragShaderSource], null, { a_position: 0, a_normal: 1, a_uv: 2 });
         this.compositeProgram = this.#createProgram(gl, [compositeVertShaderSource, compositeFragShaderSource], null, { a_position: 0 });
         this.ssaoProgram = this.#createProgram(gl, [ssaoVertShaderSource, ssaoFragShaderSource], null, { a_position: 0 });
         this.horizontalBlurProgram = this.#createProgram(gl, [horizontalBlurVertShaderSource, horizontalBlurFragShaderSource], null, { a_position: 0 });
