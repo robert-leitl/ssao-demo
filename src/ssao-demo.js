@@ -490,6 +490,8 @@ export class SSAODemo {
         const va = gl.createVertexArray();
         gl.bindVertexArray(va);
         for (const [buffer, loc, numElem] of bufLocNumElmPairs) {
+            if(loc == -1) continue;
+
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(
